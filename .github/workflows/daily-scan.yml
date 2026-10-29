@@ -34,7 +34,7 @@ jobs:
           python-version: "3.12"
 
       - name: 收集 TWSE 收盤行情並掃描
-        run: python scanner/scan.py
+        run: python -u scanner/scan.py
 
       - name: 保存資料到 repo
         run: |
