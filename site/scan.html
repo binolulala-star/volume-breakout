@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Volume Breakout 全市場掃描</title>
+<meta name="description" content="每日收盤後依 Volume Breakout V1 規則掃描全部 TWSE 上市股票，列出 BUY 與 WATCH。">
+<meta property="og:title" content="Volume Breakout 全市場掃描">
+<meta property="og:description" content="每日收盤後自動掃描 TWSE 上市股票，列出策略 BUY / WATCH 清單。僅供研究，不構成投資建議。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23C8322A'/%3E%3Cpath d='M6 22l6-6 5 4 9-11' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EDF0F3; --panel:#FFFFFF; --ink:#18212C; --ink2:#4A5563; --ink3:#7C8794; --rule:#D3DAE2; --hover:#F4F6F9;
+  --up:#C8322A; --down:#1E7A55; --buy:#C8322A; --watch:#B9770E; --pass:#1E7A55; --fail:#C8322A; --focus:#2E4C8F;
+  --num:"Barlow Condensed","Noto Sans TC",system-ui,sans-serif;
+  --body:"Noto Sans TC",system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#12171D; --panel:#1A2129; --ink:#E6EAEE; --ink2:#AEB7C1; --ink3:#7F8A96; --rule:#2C3540; --hover:#222A33;
+  --up:#E5574D; --down:#3BA57A; --buy:#E5574D; --watch:#D99A2B; --pass:#3BA57A; --fail:#E5574D; --focus:#6E8DD6; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#12171D; --panel:#1A2129; --ink:#E6EAEE; --ink2:#AEB7C1; --ink3:#7F8A96; --rule:#2C3540; --hover:#222A33;
+  --up:#E5574D; --down:#3BA57A; --buy:#E5574D; --watch:#D99A2B; --pass:#3BA57A; --fail:#E5574D; --focus:#6E8DD6; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.6}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding-block:22px 60px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+h1{font-family:var(--num);font-size:34px;line-height:1.05;margin:0}
+h1 small{display:block;font-family:var(--body);font-size:14px;font-weight:400;color:var(--ink2);margin-top:6px}
+a{color:var(--focus)}
+.navlink{font-size:14px}
+.board{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--panel);margin-bottom:18px}
+.board>div{padding:14px 16px;border-right:1px solid var(--rule)}
+.board>div:last-child{border-right:0}
+.board .k{font-size:13px;color:var(--ink3)}
+.board .v{font-family:var(--num);font-size:34px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.board .v.buy{color:var(--buy)} .board .v.watch{color:var(--watch)}
+.board .v.date{font-size:28px}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;background:none;padding:8px 16px;cursor:pointer;font-family:var(--num);font-size:19px;font-weight:600;color:var(--ink3)}
+.seg button[aria-pressed="true"].b{background:var(--buy);color:#fff}
+.seg button[aria-pressed="true"].w{background:var(--watch);color:#fff}
+.bar label{font-size:14px;color:var(--ink2);display:inline-flex;gap:6px;align-items:center}
+.bar select,.bar input[type=search]{padding:6px 10px;border:1px solid var(--rule);border-radius:6px;background:var(--panel)}
+.bar .grow{flex:1}
+.panel{background:var(--panel);border:1px solid var(--rule);border-radius:8px}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;min-width:860px}
+th,td{padding:9px 10px;border-bottom:1px solid var(--rule);text-align:right;white-space:nowrap;font-size:14px}
+th{font-weight:500;color:var(--ink3);font-size:12.5px;cursor:pointer;user-select:none;position:sticky;top:0;background:var(--panel)}
+th[aria-sort="ascending"]::after{content:" ▲";font-size:10px} th[aria-sort="descending"]::after{content:" ▼";font-size:10px}
+th.l,td.l{text-align:left}
+td.n{font-family:var(--num);font-size:17px}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--hover)}
+.code{font-family:var(--num);font-size:19px;font-weight:700;margin-right:8px}
+.name{color:var(--ink2)}
+.tag{font-size:11.5px;border:1px solid var(--rule);border-radius:4px;padding:0 5px;margin-left:6px;color:var(--ink3)}
+.up{color:var(--up)} .down{color:var(--down)}
+.risk-HIGH{color:var(--fail);font-weight:700} .risk-MEDIUM{color:var(--watch)} .risk-LOW{color:var(--pass)}
+.msg{padding:28px 20px;color:var(--ink2)}
+.err{border:1px solid var(--fail);color:var(--fail);border-radius:8px;padding:12px 16px;margin-bottom:16px;background:var(--panel)}
+.foot{font-size:12.5px;color:var(--ink3);margin-top:14px;max-width:80ch}
+.hint{font-size:13px;color:var(--ink3);margin:8px 2px 0}
+@media (max-width:720px){
+  .board{grid-template-columns:1fr 1fr} .board>div:nth-child(2){border-right:0} .board>div:nth-child(-n+2){border-bottom:1px solid var(--rule)}
+  .board .v{font-size:28px} .board .v.date{font-size:22px;white-space:nowrap} h1{font-size:28px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>全市場掃描<small>每日收盤後依 Volume Breakout V1 規則掃描 TWSE 上市股票</small></h1>
+    <a class="navlink" href="./">單一股票分析與回測</a>
+  </header>
+  <div id="status"></div>
+  <div class="board" id="board">
+    <div><div class="k">資料日期</div><div class="v date" id="bDate">—</div></div>
+    <div><div class="k">掃描檔數</div><div class="v" id="bScanned">—</div></div>
+    <div><div class="k">BUY</div><div class="v buy" id="bBuy">—</div></div>
+    <div><div class="k">WATCH</div><div class="v watch" id="bWatch">—</div></div>
+  </div>
+  <div class="bar">
+    <div class="seg" role="group" aria-label="訊號">
+      <button class="b" id="tBuy" aria-pressed="true">BUY</button>
+      <button class="w" id="tWatch" aria-pressed="false">WATCH</button>
+    </div>
+    <label><input type="checkbox" id="onlyStock" checked> 只看普通股</label>
+    <label for="minVol">日均量至少</label>
+    <select id="minVol"><option value="0">不限</option><option value="500">500 張</option><option value="1000" selected>1,000 張</option><option value="5000">5,000 張</option></select>
+    <label for="dateSel">日期</label>
+    <select id="dateSel"></select>
+    <span class="grow"></span>
+    <input type="search" id="q" placeholder="搜尋代號或名稱" aria-label="搜尋代號或名稱">
+  </div>
+  <div class="panel"><div class="scroll"><table><thead id="th"></thead><tbody id="tb"></tbody></table></div><div id="empty" class="msg" hidden></div></div>
+  <p class="hint">點任一列可開啟該股票的完整分析（PASS/FAIL、走勢圖、持倉管理與回測）。「日均量」與「只看普通股」只是顯示篩選，不改變策略訊號。</p>
+  <p class="foot" id="foot"></p>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const f2=x=>x==null||!isFinite(x)?"—":Number(x).toFixed(2);
+const pct=(x,d=2)=>x==null||!isFinite(x)?"—":(x*100).toFixed(d)+"%";
+const sp=(x)=>x==null||!isFinite(x)?"—":`<span class="${x>=0?"up":"down"}">${x>=0?"+":""}${(x*100).toFixed(2)}%</span>`;
+const lots=x=>x==null?"—":Number(x).toLocaleString("zh-TW");
+const store={get(k,d){try{const v=localStorage.getItem("vbs:"+k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem("vbs:"+k,JSON.stringify(v))}catch(e){}}};
+let DATA=null, tab=store.get("tab","buy"), sort={buy:["rvol",-1],watch:["dist",1]};
+const COLS={
+  buy:[["code","股票","l"],["close","收盤"],["chg_pct","漲跌"],["breakout_level","突破價"],["brk","突破幅度"],["rvol","RVOL"],["volume_lots","成交量(張)"],["vol_ma20_lots","20日均量(張)"],["ma20_dist","MA20 Distance"],["initial_stop","Initial Stop"],["risk_pct","停損距離"],["risk","Risk","l"]],
+  watch:[["code","股票","l"],["close","收盤"],["chg_pct","漲跌"],["prev_high","突破價"],["dist","距突破"],["rvol","RVOL"],["volume_lots","成交量(張)"],["vol_ma20_lots","20日均量(張)"],["need_volume_lots","BUY 需量(張)"],["ma20_dist","MA20 Distance"],["risk","Risk","l"]]};
+function cell(k,e){
+  switch(k){
+    case "code": return `<span class="code">${esc(e.code)}</span><span class="name">${esc(e.name)}</span>${e.kind!=="股票"?`<span class="tag">${esc(e.kind)}</span>`:""}${e.flags&&e.flags.length?`<span class="tag" title="${esc(e.flags.join("；"))}">注意</span>`:""}`;
+    case "chg_pct": return sp(e.chg_pct);
+    case "brk": return pct(e.close/e.breakout_level-1);
+    case "dist": case "ma20_dist": case "risk_pct": return pct(e[k]);
+    case "volume_lots": case "vol_ma20_lots": case "need_volume_lots": return lots(e[k]);
+    case "risk": return `<span class="risk-${e.risk}">${esc(e.risk)}</span>`;
+    default: return f2(e[k]);
+  }
+}
+function val(k,e){ if(k==="brk") return e.close/e.breakout_level-1; if(k==="code") return e.code; if(k==="risk") return {LOW:0,MEDIUM:1,HIGH:2}[e.risk]; return e[k]; }
+function render(){
+  $("#tBuy").setAttribute("aria-pressed",tab==="buy"); $("#tWatch").setAttribute("aria-pressed",tab==="watch");
+  if(!DATA||DATA.status!=="OK"){ $("#th").innerHTML=""; $("#tb").innerHTML=""; return; }
+  const minV=+$("#minVol").value, only=$("#onlyStock").checked, q=$("#q").value.trim().toLowerCase();
+  let rows=(DATA[tab]||[]).filter(e=>(!only||e.kind==="股票")&&e.vol_ma20_lots>=minV&&(!q||e.code.toLowerCase().includes(q)||e.name.toLowerCase().includes(q)));
+  const [sk,sd]=sort[tab]; rows.sort((a,b)=>{const x=val(sk,a),y=val(sk,b);return (x>y?1:x<y?-1:0)*sd;});
+  $("#th").innerHTML="<tr>"+COLS[tab].map(([k,l,c])=>`<th class="${c||""}" data-k="${k}" ${k===sk?`aria-sort="${sd>0?"ascending":"descending"}"`:""} tabindex="0">${l}</th>`).join("")+"</tr>";
+  $("#tb").innerHTML=rows.map(e=>`<tr data-code="${esc(e.code)}" tabindex="0">`+COLS[tab].map(([k,,c])=>`<td class="${c||"n"}">${cell(k,e)}</td>`).join("")+"</tr>").join("");
+  const total=(DATA[tab]||[]).length;
+  $("#empty").hidden=rows.length>0;
+  $("#empty").textContent= total===0 ? `${DATA.date} 沒有股票符合 ${tab.toUpperCase()} 條件。` : `有 ${total} 檔符合 ${tab.toUpperCase()}，但都被目前的篩選條件排除；可放寬「日均量」或取消「只看普通股」。`;
+  document.querySelectorAll("#th th").forEach(th=>{const go=()=>{const k=th.dataset.k;sort[tab]=[k,sort[tab][0]===k?-sort[tab][1]:(k==="code"||k==="dist"?1:-1)];render();};th.onclick=go;th.onkeydown=e=>{if(e.key==="Enter")go();};});
+  document.querySelectorAll("#tb tr").forEach(tr=>{const go=()=>location.href=`./?stock=${encodeURIComponent(tr.dataset.code)}&date=${DATA.date}`;tr.onclick=go;tr.onkeydown=e=>{if(e.key==="Enter")go();};});
+}
+function show(d){
+  DATA=d;
+  const st=$("#status"); st.innerHTML="";
+  if(d.status!=="OK"){ st.innerHTML=`<div class="err">${d.status==="INCOMPLETE"?"本日未發布訊號：":"尚無掃描結果："}${esc(d.message||"")}</div>`; }
+  $("#bDate").textContent=d.date||"—";
+  $("#bScanned").textContent=d.counts?d.counts.scanned.toLocaleString("zh-TW"):"—";
+  $("#bBuy").textContent=d.buy?d.buy.length:"—"; $("#bWatch").textContent=d.watch?d.watch.length:"—";
+  $("#tBuy").textContent=`BUY ${d.buy?d.buy.length:""}`; $("#tWatch").textContent=`WATCH ${d.watch?d.watch.length:""}`;
+  $("#foot").textContent=`資料來源：${d.source||"TWSE"}；計算窗口 ${d.window_start||"—"} 起 ${d.window_days||"—"} 個交易日；策略 ${d.version||"V1"}；產生時間 ${d.generated_at||"—"}。`+
+    (d.counts?` 另有 ${d.counts.insufficient} 檔因上市天數不足無法計算。`:"")+` ${d.disclaimer||""}`;
+  render();
+}
+async function load(date){
+  try{
+    const url = date ? `data/scans/${date}.json` : "data/latest.json";
+    const r=await fetch(url,{cache:"no-store"}); if(!r.ok) throw new Error("HTTP "+r.status);
+    show(await r.json());
+  }catch(e){
+    $("#status").innerHTML=`<div class="err">讀不到掃描結果（${esc(e.message)}）。${location.protocol==="file:"?"請用網站網址開啟此頁，不要直接開啟本機檔案。":"若網站剛建立，請等第一次每日掃描完成（約收盤後一小時）。"}</div>`;
+  }
+}
+async function loadIndex(){
+  try{ const r=await fetch("data/index.json",{cache:"no-store"}); const j=await r.json();
+    $("#dateSel").innerHTML=`<option value="">最新</option>`+j.dates.map(x=>`<option value="${x.date}">${x.date}（BUY ${x.buy}／WATCH ${x.watch}）</option>`).join("");
+  }catch(e){ $("#dateSel").innerHTML=`<option value="">最新</option>`; }
+}
+$("#tBuy").onclick=()=>{tab="buy";store.set("tab",tab);render();};
+$("#tWatch").onclick=()=>{tab="watch";store.set("tab",tab);render();};
+["#minVol","#onlyStock"].forEach(s=>$(s).onchange=()=>{store.set("f",{minVol:$("#minVol").value,only:$("#onlyStock").checked});render();});
+$("#q").oninput=render;
+$("#dateSel").onchange=()=>load($("#dateSel").value);
+(()=>{const f=store.get("f",null); if(f){$("#minVol").value=f.minVol;$("#onlyStock").checked=f.only;}})();
+loadIndex(); load();
+</script>
+</body>
+</html>
